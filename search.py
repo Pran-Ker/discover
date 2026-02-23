@@ -334,7 +334,9 @@ def main():
     )
 
     best_value = None
+    best_raw_score = None
     best_detail = "none"
+    is_lower_better = None  # detected from first valid result
     total_calls = 0
     total_valid = 0
     total_errors = 0
@@ -411,6 +413,7 @@ def main():
     for round_idx in range(args.num_epochs):
         parent_states = sampler.sample_states(args.groups_per_batch)
         round_best = None
+        round_best_raw = None
         round_best_detail = ""
 
         parent_vals = [s.value if s.value is not None else "none" for s in parent_states]
@@ -489,15 +492,22 @@ def main():
             elif res["status"] == "valid":
                 total_valid += 1
                 performance = outs.get("performance", 0.0)
+                raw_score = outs.get("raw_score")
                 detail = format_result(args.env, outs)
+
+                # Detect lower-is-better from first valid result
+                if is_lower_better is None:
+                    is_lower_better = outs.get("is_lower_better", False)
 
                 is_new_best = False
                 if best_value is None or performance > best_value:
                     best_value = performance
+                    best_raw_score = raw_score
                     best_detail = detail
                     is_new_best = True
                 if round_best is None or performance > round_best:
                     round_best = performance
+                    round_best_raw = raw_score
                     round_best_detail = detail
 
                 next_state = create_next_state(args.env, round_idx, parsed_code, outs, state)
@@ -601,14 +611,30 @@ def main():
             f.write(json.dumps(best_entry, default=str) + "\n")
 
         # Log round metrics to wandb
+        # For lower-is-better: best_value/round_best show positive (raw) scores for dashboard comparison
+        # raw versions show the negated internal values used for selection
+        if is_lower_better:
+            wb_best = best_raw_score if best_raw_score is not None else 0.0
+            wb_round_best = round_best_raw if round_best_raw is not None else 0.0
+            wb_best_raw = best_value if best_value is not None else 0.0
+            wb_round_best_raw = round_best if round_best is not None else 0.0
+        else:
+            wb_best = best_value if best_value is not None else 0.0
+            wb_round_best = round_best if round_best is not None else 0.0
+            wb_best_raw = None
+            wb_round_best_raw = None
+
         round_metrics = {
             "search/round": round_idx,
-            "search/best_value": best_value if best_value is not None else 0.0,
-            "search/round_best": round_best if round_best is not None else 0.0,
+            "search/best_value": wb_best,
+            "search/round_best": wb_round_best,
             "search/total_valid": total_valid,
             "search/total_errors": total_errors,
             "search/total_calls": total_calls,
         }
+        if wb_best_raw is not None:
+            round_metrics["search/best_raw_score"] = wb_best_raw
+            round_metrics["search/round_best_raw_score"] = wb_round_best_raw
         ml_logger.log_metrics(round_metrics)
 
         print(f"  Round wall time: {round_wall:.1f}s | Best this round: {round_best_detail or 'none'}")
