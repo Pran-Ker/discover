@@ -132,7 +132,10 @@ class MleBenchEnv(BaseTTTEnv):
                 value_ctx = f"\nPrevious score: {state.raw_score}"
                 value_ctx += f"\nMedal achieved: {state.medal}"
             if state.parent_values and state.value is not None:
-                value_ctx += f"\nReward before/after: {state.parent_values[0]:.4f} -> {state.value:.4f}"
+                if state.is_lower_better:
+                    value_ctx += f"\nScore before/after (lower is better): {-state.parent_values[0]:.4f} -> {-state.value:.4f}"
+                else:
+                    value_ctx += f"\nScore before/after: {state.parent_values[0]:.4f} -> {state.value:.4f}"
 
             if state.observation and state.observation.strip():
                 stdout = state.observation.strip()
