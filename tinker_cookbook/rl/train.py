@@ -1421,8 +1421,10 @@ async def do_sync_training(
 
         # Log sampler stats if available (PER sampler)
         sampler_table_columns, sampler_table_data = None, None
+        _is_lower_better = False
         if hasattr(dataset, 'sampler') and hasattr(dataset.sampler, 'get_sample_stats'):
             sampler_stats = dataset.sampler.get_sample_stats()
+            _is_lower_better = sampler_stats.pop("search/_is_lower_better", False)
             metrics.update(sampler_stats)
             if hasattr(dataset.sampler, 'get_sample_table'):
                 sampler_table_columns, sampler_table_data = dataset.sampler.get_sample_table()
@@ -1543,7 +1545,12 @@ async def do_sync_training(
         # Track search/round_best from this batch's rewards
         batch_rewards = [r for tg in trajectory_groups_P for r in tg.get_total_rewards()]
         if batch_rewards:
-            metrics["search/round_best"] = max(batch_rewards)
+            round_best = max(batch_rewards)
+            if _is_lower_better:
+                metrics["search/round_best"] = -round_best
+                metrics["search/round_best_raw_score"] = round_best
+            else:
+                metrics["search/round_best"] = round_best
 
         # Log metrics
         metrics.update(train_step_metrics)
