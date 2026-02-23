@@ -299,13 +299,22 @@ class GreedySampler(StateSampler):
     def get_sample_stats(self) -> dict:
         with self._lock:
             values = [s.value for s in self._top_states if s.value is not None]
+            is_lower_better = any(getattr(s, 'is_lower_better', False) for s in self._top_states)
         if not values:
             return {}
-        return {
-            "search/best_value": max(values),
+        best_value = max(values)
+        stats = {
             "search/buffer_size": len(values),
             "search/buffer_mean": float(np.mean(values)),
+            "search/_is_lower_better": is_lower_better,
         }
+        if is_lower_better:
+            # Show positive (raw) score for dashboard comparison
+            stats["search/best_value"] = -best_value
+            stats["search/best_raw_score"] = best_value
+        else:
+            stats["search/best_value"] = best_value
+        return stats
 
 
 class FixedSampler(StateSampler):
