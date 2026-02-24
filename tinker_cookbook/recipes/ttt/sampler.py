@@ -298,8 +298,10 @@ class GreedySampler(StateSampler):
 
     def get_sample_stats(self) -> dict:
         with self._lock:
-            values = [s.value for s in self._top_states if s.value is not None]
-            is_lower_better = any(getattr(s, 'is_lower_better', False) for s in self._top_states)
+            # Exclude initial states (timestep=-1) — they have placeholder values
+            real_states = [s for s in self._top_states if s.timestep >= 0]
+            values = [s.value for s in real_states if s.value is not None]
+            is_lower_better = any(getattr(s, 'is_lower_better', False) for s in real_states)
         if not values:
             return {}
         best_value = max(values)
