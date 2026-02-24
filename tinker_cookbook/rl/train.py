@@ -1542,6 +1542,11 @@ async def do_sync_training(
                 )
             }, step=i_batch)
 
+        # Re-check is_lower_better AFTER rollouts (sampler now has real states)
+        if not _is_lower_better and hasattr(dataset, 'sampler') and hasattr(dataset.sampler, 'get_sample_stats'):
+            post_stats = dataset.sampler.get_sample_stats()
+            _is_lower_better = post_stats.pop("search/_is_lower_better", False)
+
         # Track search/round_best from this batch's rewards
         batch_rewards = [r for tg in trajectory_groups_P for r in tg.get_total_rewards()]
         if batch_rewards:
