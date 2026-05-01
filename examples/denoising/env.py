@@ -283,17 +283,23 @@ Write your improved `magic_denoise` function."""
         }
 
 
-def discover_denoising():
+def discover_denoising(num_epochs=50, wandb_project=None):
     config = DiscoverConfig(
         env_type=DenoisingEnv,
         problem_type="",
         num_cpus_per_task=1,
         eval_timeout=530,
         experiment_name=f"test-denoising-run",
-        wandb_project="denoising",
+        wandb_project=wandb_project,
+        num_epochs=num_epochs,
     )
     discover(config)
 
 
 if __name__ == "__main__":
-    discover_denoising()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--wandb_project", type=str, default=None)
+    args = parser.parse_args()
+    discover_denoising(num_epochs=args.num_epochs, wandb_project=args.wandb_project)

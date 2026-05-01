@@ -448,11 +448,14 @@ def initialize_or_resume_wandb_logger(wandb_project, config, log_dir, wandb_name
     latest_run_id = None
     latest_created_at = None
 
-    # Find the most recent run with this name
-    for run in runs:
-        if latest_created_at is None or run.created_at > latest_created_at:
-            latest_created_at = run.created_at
-            latest_run_id = run.id
+    # Find the most recent run with this name (project may not exist yet on first run)
+    try:
+        for run in runs:
+            if latest_created_at is None or run.created_at > latest_created_at:
+                latest_created_at = run.created_at
+                latest_run_id = run.id
+    except ValueError:
+        pass  # Project doesn't exist yet; wandb.init will create it
 
     # Construct your logger – assumes WandbLogger is already imported / defined
     logger = WandbLogger(

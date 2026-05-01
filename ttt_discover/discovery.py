@@ -21,7 +21,7 @@ class DiscoverConfig:
     model_name: str = "openai/gpt-oss-120b"
     lora_rank: int = 32
     renderer_name: str | None = "gpt_oss_high_reasoning"
-    save_every: int = 2
+    save_every: int = 1
 
     # Training hyperparameters
     group_size: int = 64
