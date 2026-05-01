@@ -10,7 +10,7 @@ from modal import App, Image  # pyright: ignore[reportMissingImports]
 
 from modal_runner import modal_run_config
 
-TASK = "mla_decode_nvidia"
+TASK = "trimul"
 
 if TASK == "trimul":
     ## TRIMUL Image
@@ -20,7 +20,7 @@ if TASK == "trimul":
     operating_sys = "ubuntu24.04"
     tag = f"{cuda_version}-{flavor}-{operating_sys}"
     cuda_image = (
-        Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.13")
+        Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.11")
         .apt_install(
             "git",
             "gcc-13",

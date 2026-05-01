@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import tempfile
@@ -6,6 +5,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 
 from ttt_discover import (
@@ -18,16 +18,13 @@ from ttt_discover import (
 from ttt_discover.tinker_utils.dataset_builder import VerifyResult
 from ttt_discover.tinker_utils.state import to_json_serializable
 
-TRAIN_CSV = os.environ.get("LAWBENCH_TRAIN_CSV", "data/public/train.csv")
-CLASSES_JSON = os.environ.get("LAWBENCH_CLASSES_JSON", "data/public/classes.json")
-
-with open(CLASSES_JSON, encoding="utf-8") as _f:
-    ALL_CLASSES: list[str] = list(json.load(_f))
+TRAIN_CSV = "/Users/pran-ker/Developer/Hexo/Open-SIA/tasks/symptom2disease/data/public/train.csv"
+PRIVATE_CSV = "/Users/pran-ker/Developer/Hexo/Open-SIA/tasks/symptom2disease/data/private/test.csv"
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-class LawbenchState(State):
+class S2DState(State):
     accuracy: float
 
     def __init__(
@@ -47,7 +44,7 @@ class LawbenchState(State):
 
     def to_dict(self) -> dict:
         return {
-            "type": "LawbenchState",
+            "type": "S2DState",
             "id": self.id,
             "timestep": self.timestep,
             "value": self.value,
@@ -60,7 +57,7 @@ class LawbenchState(State):
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "LawbenchState":
+    def from_dict(cls, d: dict) -> "S2DState":
         return cls(
             timestep=d["timestep"],
             construction=d["construction"],
@@ -82,45 +79,44 @@ def _build_eval_program(
     test_path: str,
     sub_path: str,
     gt_path: str,
-    classes_path: str,
 ) -> str:
+    # Paths are injected as locals inside run_s2d() rather than module-level
+    # constants to prevent any name collision with model-generated code.
     header = """\
 import pandas as pd
 import numpy as np
-import json
+from sklearn.metrics import f1_score
 """
     wrapper = f"""\
 
-def run_lawbench():
+def run_s2d():
     _train_path = {train_path!r}
     _test_path = {test_path!r}
     _sub_path = {sub_path!r}
     _gt_path = {gt_path!r}
-    _classes_path = {classes_path!r}
-    classify(_train_path, _test_path, _sub_path, _classes_path)
+    classify(_train_path, _test_path, _sub_path)
     submission = pd.read_csv(_sub_path)
     gt = pd.read_csv(_gt_path)
     merged = submission.merge(gt, on="id")
-    correct = (merged["label_x"] == merged["label_y"]).sum()
-    return float(correct) / len(merged)
+    return float(f1_score(merged["true_label"], merged["label"], average="macro"))
 """
     return header + "\n\n" + fn_code + "\n" + wrapper
 
 
 # ── Reward evaluator ──────────────────────────────────────────────────────────
 
-class LawbenchRewardEvaluator(SandboxRewardEvaluator):
+class S2DRewardEvaluator(SandboxRewardEvaluator):
 
     def get_program_entrypoint(self) -> str:
-        return "run_lawbench"
+        return "run_s2d"
 
-    def get_reward(self, code: str, state: LawbenchState) -> dict:
+    def get_reward(self, code: str, state: S2DState) -> dict:
         extracted = self._extract_code(code)
         if extracted is None:
             return self._get_failure_entry("Cannot extract Python code from model response")
 
         _EVAL_SEEDS = [42, 137, 271]
-        tmp_dir = tempfile.mkdtemp(prefix="lawbench_eval_")
+        tmp_dir = tempfile.mkdtemp(prefix="s2d_eval_")
         try:
             df = pd.read_csv(TRAIN_CSV)
             fold_scores = []
@@ -137,11 +133,9 @@ class LawbenchRewardEvaluator(SandboxRewardEvaluator):
 
                 train_df.to_csv(train_path, index=False)
                 val_df[["id", "text"]].to_csv(test_path, index=False)
-                val_df[["id", "label"]].to_csv(gt_path, index=False)
+                val_df[["id", "label"]].rename(columns={"label": "true_label"}).to_csv(gt_path, index=False)
 
-                full_program = _build_eval_program(
-                    extracted, train_path, test_path, sub_path, gt_path, CLASSES_JSON
-                )
+                full_program = _build_eval_program(extracted, train_path, test_path, sub_path, gt_path)
 
                 try:
                     output = self.run_eval_code(full_program)
@@ -150,20 +144,20 @@ class LawbenchRewardEvaluator(SandboxRewardEvaluator):
 
                 if not isinstance(output, (int, float)) or not (0.0 <= float(output) <= 1.0):
                     return self._get_failure_entry(
-                        f"run_lawbench() must return accuracy in [0, 1], got: {output!r} (seed={seed})"
+                        f"run_s2d() must return macro F1 in [0, 1], got: {output!r} (seed={seed})"
                     )
 
                 fold_scores.append(float(output))
 
-            accuracy = float(np.mean(fold_scores))
+            macro_f1 = float(np.mean(fold_scores))
             return {
-                "reward": accuracy,
+                "reward": macro_f1,
                 "msg": "",
                 "correctness": 1.0,
-                "raw_score": accuracy,
+                "raw_score": macro_f1,
                 "result_construction": [],
                 "stdout": getattr(self, "_last_stdout", ""),
-                "metrics": {"accuracy": accuracy, "fold_scores": fold_scores},
+                "metrics": {"macro_f1": macro_f1, "fold_scores": fold_scores},
             }
 
         finally:
@@ -172,39 +166,33 @@ class LawbenchRewardEvaluator(SandboxRewardEvaluator):
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
-_CLASSES_STR = json.dumps(ALL_CLASSES, ensure_ascii=False)
-
-SYSTEM_PROMPT = f"""\
-You are a machine learning engineer solving a Chinese legal text classification task.
+SYSTEM_PROMPT = """\
+You are a machine learning engineer solving a medical text classification task.
 
 ## Task
-LawBench: given a Chinese criminal case description (事实, ~400 chars), predict one of 191 criminal charge labels (罪名).
+Symptom2Disease (S2D): given a free-text symptom description (1-3 sentences), predict one of 24 disease labels.
 
 ## Dataset
-- ~5,332 training samples (columns: id, label, text)
-- ~913 test samples (columns: id, text — no labels)
-- 191 classes (Chinese criminal charges), imbalanced
-
-## Valid labels (must predict only from this list)
-{_CLASSES_STR}
+- ~768 training samples (columns: id, label, text)
+- ~192 test samples (columns: id, text — no labels)
+- 24 classes, balanced (~40 samples per class in full training set)
 
 ## Your job
 Write a Python function with this exact signature:
 
 ```python
-def classify(train_path: str, test_path: str, submission_path: str, classes_path: str) -> None:
+def classify(train_path: str, test_path: str, submission_path: str) -> None:
     ...
 ```
 
 The function must:
 1. Read training data from `train_path` (columns: id, label, text)
-2. Read valid classes from `classes_path` (JSON list of 191 strings) — only predict labels from this list
-3. Fit a classifier on the training samples
-4. Read test data from `test_path` (columns: id, text)
-5. Write `submission.csv` to `submission_path` with columns: id, label
+2. Fit a classifier on those samples
+3. Read test data from `test_path` (columns: id, text)
+4. Write `submission.csv` to `submission_path` with columns: id, label
 
 ## Available libraries
-pandas, numpy, scikit-learn
+pandas, numpy, scikit-learn (TF-IDF, SVM, logistic regression, etc.)
 Do NOT use external APIs or packages that require network access.
 
 ## Output format
@@ -214,13 +202,13 @@ Respond with a single ```python ... ``` block containing only the `classify` fun
 
 # ── Environment ───────────────────────────────────────────────────────────────
 
-class LawbenchEnv(Environment):
-    reward_function = LawbenchRewardEvaluator
-    state_type = LawbenchState
+class S2DEnv(Environment):
+    reward_function = S2DRewardEvaluator
+    state_type = S2DState
 
     @classmethod
-    def create_initial_state(cls, problem_type: str = "lawbench") -> LawbenchState:
-        return LawbenchState(
+    def create_initial_state(cls, problem_type: str = "s2d") -> S2DState:
+        return S2DState(
             timestep=-1,
             construction=[],
             code="",
@@ -244,7 +232,7 @@ class LawbenchEnv(Environment):
 
             accuracy_line = ""
             if state.accuracy is not None:
-                accuracy_line = f"\nCurrent validation accuracy: {state.accuracy:.4f} (higher is better)"
+                accuracy_line = f"\nCurrent validation macro F1: {state.accuracy:.4f} (higher is better)"
 
             prompt += f"""
 ## Previous implementation
@@ -268,10 +256,10 @@ Reason about how to improve this approach, then write an improved `classify` fun
         step_idx: int,
         parsed_code: str,
         outs: VerifyResult,
-    ) -> LawbenchState:
+    ) -> S2DState:
         accuracy = None
         if outs.metrics:
-            accuracy = outs.metrics.get("accuracy")
+            accuracy = outs.metrics.get("macro_f1")
 
         return self.state_type(
             timestep=step_idx,
@@ -300,7 +288,7 @@ Reason about how to improve this approach, then write an improved `classify` fun
             "prompt": self.get_question(),
             "response": message["content"],
             "parsed_code": parsed_code,
-            "accuracy": outs.metrics.get("accuracy") if outs.metrics else None,
+            "macro_f1": outs.metrics.get("macro_f1") if outs.metrics else None,
         }
 
 
@@ -308,20 +296,20 @@ Reason about how to improve this approach, then write an improved `classify` fun
 
 if __name__ == "__main__":
     config = DiscoverConfig(
-        env_type=LawbenchEnv,
+        env_type=S2DEnv,
         model_name="openai/gpt-oss-120b",
         lora_rank=32,
         group_size=32,
         groups_per_batch=4,
         learning_rate=4e-5,
-        num_epochs=5,
+        num_epochs=50,
         temperature=1.0,
         kl_penalty_coef=0.1,
         phase1_max_tokens=16000,
-        problem_type="lawbench",
-        experiment_name="lawbench-ttt",
-        wandb_project="discover-ttt-lawbench",
+        problem_type="s2d",
+        experiment_name="s2d-ttt",
+        wandb_project="discover-ttt-s2d",
         num_cpus_per_task=1,
-        eval_timeout=180,
+        eval_timeout=120,
     )
     discover(config)

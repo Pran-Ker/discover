@@ -235,3 +235,9 @@ gpu_mode/gpu_scores.tsv
 tinker_log/
 openproblems/
 data/
+
+# Local experiment files
+Zlog/
+Zexp/config_gpu_mode.json
+.DS_Store
+.claude/

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>S2D Trial Run — Reward Function Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0f1117; color: #e0e0e0; margin: 0; padding: 24px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #fff; }
+  .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 32px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .card { background: #1a1d27; border-radius: 12px; padding: 20px; }
+  .card.wide { grid-column: 1 / -1; }
+  h2 { font-size: 1rem; color: #aaa; margin: 0 0 16px; text-transform: uppercase;
+        letter-spacing: 0.05em; }
+  canvas { max-height: 380px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; color: #888; font-weight: 600; padding: 8px 12px;
+        border-bottom: 1px solid #2d3044; }
+  td { padding: 8px 12px; border-bottom: 1px solid #1e2132; }
+  tr:last-child td { border-bottom: none; }
+  .best { color: #4ade80; font-weight: 700; }
+  .tag { display: inline-block; background: #2d3044; border-radius: 4px;
+          padding: 1px 6px; font-size: 0.75rem; color: #aaa; margin-left: 6px; }
+  .delta { color: #60a5fa; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<h1>S2D Reward Function — Trial Run</h1>
+<div class="subtitle">3-seed macro F1 evaluation · 7 classifiers · 960 samples · 24 classes</div>
+
+<div class="grid">
+
+  <div class="card wide">
+    <h2>Score Ladder — Mean Macro F1 across 3 seeds</h2>
+    <canvas id="ladderChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Per-seed Variance</h2>
+    <canvas id="varianceChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Seed-by-seed Breakdown</h2>
+    <canvas id="seedChart"></canvas>
+  </div>
+
+  <div class="card wide">
+    <h2>Raw Results Table</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Classifier</th>
+          <th>Macro F1 (mean)</th><th>± std</th>
+          <th>Accuracy (mean)</th>
+          <th>Seed 42</th><th>Seed 137</th><th>Seed 271</th>
+          <th>Time (s)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td>1</td>
+          <td>Random Baseline</td>
+          <td >0.0446</td>
+          <td>0.01338</td>
+          <td>0.0451</td>
+          <td>0.0446</td>
+          <td>0.0282</td>
+          <td>0.0609</td>
+          <td>0.01</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>TF-IDF + Naive Bayes</td>
+          <td >0.9363 <span class="delta">(+0.8917)</span></td>
+          <td>0.01526</td>
+          <td>0.9375</td>
+          <td>0.9147</td>
+          <td>0.9474</td>
+          <td>0.9467</td>
+          <td>0.03</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>TF-IDF (1-2g) + Logistic Regression</td>
+          <td >0.9648 <span class="delta">(+0.0285)</span></td>
+          <td>0.00645</td>
+          <td>0.9653</td>
+          <td>0.9629</td>
+          <td>0.9735</td>
+          <td>0.9581</td>
+          <td>0.4</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>TF-IDF (1-2g) + Linear SVM</td>
+          <td class="best">0.9735 <span class="delta">(+0.0087)</span></td>
+          <td>0.00416</td>
+          <td>0.9740</td>
+          <td>0.9733</td>
+          <td>0.9787</td>
+          <td>0.9685</td>
+          <td>0.43</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>TF-IDF (1-3g) + LR (tuned C=5)</td>
+          <td >0.9611 <span class="delta">(-0.0124)</span></td>
+          <td>0.00663</td>
+          <td>0.9618</td>
+          <td>0.9629</td>
+          <td>0.9682</td>
+          <td>0.9523</td>
+          <td>1.25</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>TF-IDF (1-3g) + SVM (tuned C=5)</td>
+          <td >0.9682 <span class="delta">(+0.0071)</span></td>
+          <td>0.00758</td>
+          <td>0.9688</td>
+          <td>0.9733</td>
+          <td>0.9738</td>
+          <td>0.9575</td>
+          <td>1.36</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>TF-IDF (1-3g) + LR+SVM Ensemble</td>
+          <td >0.9647 <span class="delta">(-0.0035)</span></td>
+          <td>0.00911</td>
+          <td>0.9653</td>
+          <td>0.9681</td>
+          <td>0.9738</td>
+          <td>0.9523</td>
+          <td>2.64</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const DATA = [{"name": "Random Baseline", "f1_mean": 0.04456614650113102, "f1_std": 0.013383893791335979, "f1_seeds": [0.044588851622520354, 0.028162950453972126, 0.060946637426900575], "acc_mean": 0.04513888888888889, "acc_std": 0.010702107644043361, "acc_seeds": [0.046875, 0.03125, 0.057291666666666664], "elapsed_s": 0.01}, {"name": "TF-IDF + Naive Bayes", "f1_mean": 0.93629017790202, "f1_std": 0.015256542346008133, "f1_seeds": [0.9147180222741368, 0.9474293884220355, 0.9467231230098877], "acc_mean": 0.9375, "acc_std": 0.01473139127471974, "acc_seeds": [0.9166666666666666, 0.9479166666666666, 0.9479166666666666], "elapsed_s": 0.03}, {"name": "TF-IDF (1-2g) + Logistic Regression", "f1_mean": 0.9648144906110594, "f1_std": 0.00644821672249587, "f1_seeds": [0.9628773731714908, 0.9735002334267041, 0.958065865234983], "acc_mean": 0.9652777777777778, "acc_std": 0.00649593296314921, "acc_seeds": [0.9635416666666666, 0.9739583333333334, 0.9583333333333334], "elapsed_s": 0.4}, {"name": "TF-IDF (1-2g) + Linear SVM", "f1_mean": 0.9735222792820832, "f1_std": 0.0041601951483680125, "f1_seeds": [0.9733348895113602, 0.9787085667600374, 0.9685233815748523], "acc_mean": 0.9739583333333334, "acc_std": 0.004252586358998558, "acc_seeds": [0.9739583333333334, 0.9791666666666666, 0.96875], "elapsed_s": 0.43}, {"name": "TF-IDF (1-3g) + LR (tuned C=5)", "f1_mean": 0.9611107370298547, "f1_std": 0.006625624343352869, "f1_seeds": [0.9628773731714908, 0.9681965841892314, 0.952258253728842], "acc_mean": 0.9618055555555555, "acc_std": 0.0064959329631491996, "acc_seeds": [0.9635416666666666, 0.96875, 0.953125], "elapsed_s": 1.25}, {"name": "TF-IDF (1-3g) + SVM (tuned C=5)", "f1_mean": 0.9681981553305082, "f1_std": 0.007576029526433043, "f1_seeds": [0.9733348895113602, 0.9737725645813882, 0.9574870118987766], "acc_mean": 0.96875, "acc_std": 0.00736569563735987, "acc_seeds": [0.9739583333333334, 0.9739583333333334, 0.9583333333333334], "elapsed_s": 1.36}, {"name": "TF-IDF (1-3g) + LR+SVM Ensemble", "f1_mean": 0.9647123165505519, "f1_std": 0.009105122257684083, "f1_seeds": [0.9681061313414255, 0.9737725645813882, 0.952258253728842], "acc_mean": 0.9652777777777778, "acc_std": 0.00885246443332082, "acc_seeds": [0.96875, 0.9739583333333334, 0.953125], "elapsed_s": 2.64}];
+
+const names = DATA.map(d => d.name);
+const f1means = DATA.map(d => d.f1_mean);
+const f1stds = DATA.map(d => d.f1_std);
+const accmeans = DATA.map(d => d.acc_mean);
+const seeds = [42, 137, 271];
+const seedColors = ['#60a5fa','#a78bfa','#34d399'];
+
+const baseColor = (i, alpha=1) => `hsla(${200 + i * 22}, 70%, 60%, ${alpha})`;
+
+// ── Ladder chart ──────────────────────────────────────────────────────────────
+new Chart(document.getElementById('ladderChart'), {
+  type: 'bar',
+  data: {
+    labels: names,
+    datasets: [
+      {
+        label: 'Macro F1',
+        data: f1means,
+        backgroundColor: names.map((_, i) => baseColor(i, 0.75)),
+        borderColor: names.map((_, i) => baseColor(i)),
+        borderWidth: 1,
+        borderRadius: 6,
+      },
+      {
+        label: 'Accuracy',
+        data: accmeans,
+        backgroundColor: names.map((_, i) => baseColor(i, 0.3)),
+        borderColor: names.map((_, i) => baseColor(i, 0.5)),
+        borderWidth: 1,
+        borderDash: [4, 4],
+        borderRadius: 6,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: '#ccc' } },
+      tooltip: { callbacks: {
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toFixed(4)}`
+      } },
+    },
+    scales: {
+      x: { ticks: { color: '#aaa', maxRotation: 30 }, grid: { color: '#2d3044' } },
+      y: { min: 0, max: 1.05, ticks: { color: '#aaa' }, grid: { color: '#2d3044' } },
+    },
+  },
+});
+
+// ── Variance chart ────────────────────────────────────────────────────────────
+new Chart(document.getElementById('varianceChart'), {
+  type: 'bar',
+  data: {
+    labels: names,
+    datasets: [{
+      label: 'Std Dev across seeds',
+      data: f1stds,
+      backgroundColor: names.map((_, i) => baseColor(i, 0.6)),
+      borderRadius: 4,
+    }],
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: '#ccc' } },
+      tooltip: { callbacks: {
+        label: ctx => ` std: ${ctx.raw.toFixed(5)}`
+      } },
+    },
+    scales: {
+      x: { ticks: { color: '#aaa', maxRotation: 30 }, grid: { color: '#2d3044' } },
+      y: { ticks: { color: '#aaa' }, grid: { color: '#2d3044' } },
+    },
+  },
+});
+
+// ── Per-seed line chart ───────────────────────────────────────────────────────
+new Chart(document.getElementById('seedChart'), {
+  type: 'line',
+  data: {
+    labels: names,
+    datasets: seeds.map((seed, si) => ({
+      label: `Seed ${seed}`,
+      data: DATA.map(d => d.f1_seeds[si]),
+      borderColor: seedColors[si],
+      backgroundColor: seedColors[si].replace(')', ', 0.1)').replace('rgb', 'rgba'),
+      tension: 0.3,
+      pointRadius: 5,
+    })),
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#ccc' } } },
+    scales: {
+      x: { ticks: { color: '#aaa', maxRotation: 30 }, grid: { color: '#2d3044' } },
+      y: { min: 0, max: 1.05, ticks: { color: '#aaa' }, grid: { color: '#2d3044' } },
+    },
+  },
+});
+</script>
+</body>
+</html>
