@@ -221,17 +221,44 @@ Rules:
         )
 
 
-def discover_gpu_mode(problem_type: str):
+def discover_gpu_mode(
+    problem_type: str,
+    group_size: int = 64,
+    groups_per_batch: int = 8,
+    num_epochs: int = 50,
+    experiment_name: str | None = None,
+    wandb_project: str = "gpu-mode",
+):
+    if experiment_name is None:
+        experiment_name = f"gpu-mode-{problem_type}-run"
     config = DiscoverConfig(
         env_type=GpuModeEnv,
         problem_type=problem_type,
         eval_timeout=530,
-        experiment_name=f"test-gpu-mode-{problem_type}-run",
-        wandb_project="gpu-mode",
+        experiment_name=experiment_name,
+        wandb_project=wandb_project,
+        group_size=group_size,
+        groups_per_batch=groups_per_batch,
+        num_epochs=num_epochs,
     )
     discover(config)
 
 
 if __name__ == "__main__":
-    discover_gpu_mode("trimul")
-    # discover_gpu_mode("mla_decode_nvidia")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--problem_type", type=str, default="trimul")
+    parser.add_argument("--group_size", type=int, default=64)
+    parser.add_argument("--groups_per_batch", type=int, default=8)
+    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--experiment_name", type=str, default=None)
+    parser.add_argument("--wandb_project", type=str, default="gpu-mode")
+    args = parser.parse_args()
+    discover_gpu_mode(
+        problem_type=args.problem_type,
+        group_size=args.group_size,
+        groups_per_batch=args.groups_per_batch,
+        num_epochs=args.num_epochs,
+        experiment_name=args.experiment_name,
+        wandb_project=args.wandb_project,
+    )

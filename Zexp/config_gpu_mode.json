@@ -1,0 +1,17 @@
+{
+  "model_name": "openai/gpt-oss-120b",
+  "lora_rank": 32,
+  "renderer_name": "gpt_oss_high_reasoning",
+  "group_size": 16,
+  "groups_per_batch": 2,
+  "learning_rate": 4e-5,
+  "num_epochs": 50,
+  "temperature": 1.0,
+  "kl_penalty_coef": 0.1,
+  "phase1_max_tokens": 26000,
+  "eval_timeout": 530,
+  "problem_type": "trimul",
+  "wandb_project": "gpu-mode",
+  "wandb_entity": "hebbarpran-warping",
+  "hf_repo": "Pran-Ker/discover-gpu-mode"
+}
